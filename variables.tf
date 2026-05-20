@@ -1,3 +1,8 @@
+variable "subscription_id" {
+  description = "Azure subscription ID to deploy resources in."
+  type        = string
+}
+
 variable "resource_group_name" {
   description = "Name of the resource group for the lab resources."
   type        = string

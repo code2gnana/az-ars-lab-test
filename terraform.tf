@@ -7,4 +7,7 @@ terraform {
       version = "~> 4.2"
     }
   }
+  backend "local" {
+
+  }
 }
