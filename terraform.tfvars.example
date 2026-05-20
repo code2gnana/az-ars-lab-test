@@ -1,0 +1,31 @@
+resource_group_name = "rg-ars-leak-testing"
+location            = "eastus"
+
+hub_vnet_name     = "vnet-hub"
+spoke_a_vnet_name = "vnet-spoke-a"
+spoke_b_vnet_name = "vnet-spoke-b"
+
+hub_address_space     = ["10.0.0.0/16"]
+spoke_a_address_space = ["10.1.0.0/16"]
+spoke_b_address_space = ["10.2.0.0/16"]
+
+hub_default_subnet_prefixes      = ["10.0.0.0/24"]
+gateway_subnet_prefixes          = ["10.0.254.0/24"]
+route_server_subnet_prefixes     = ["10.0.253.0/27"]
+spoke_a_default_subnet_prefixes  = ["10.1.0.0/24"]
+spoke_b_default_subnet_prefixes  = ["10.2.0.0/24"]
+
+vpn_gateway_name           = "vpngw-hub"
+vpn_gateway_sku            = "VpnGw1"
+vpn_gateway_bgp_asn        = 65515
+vpn_gateway_public_ip_name = "pip-vpngw"
+
+route_server_name                             = "ars-hub"
+route_server_public_ip_name                   = "pip-routeserver"
+route_server_sku                              = "Standard"
+route_server_branch_to_branch_traffic_enabled = false
+
+hub_to_spoke_a_allow_gateway_transit = true
+spoke_a_to_hub_use_remote_gateways   = true
+hub_to_spoke_b_allow_gateway_transit = false
+spoke_b_to_hub_use_remote_gateways   = false
