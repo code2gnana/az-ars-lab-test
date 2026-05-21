@@ -1,9 +1,12 @@
 resource "azurerm_public_ip" "vpngw_pip" {
-  name                = var.vpn_gateway_public_ip_name
+  count = 2
+  name  = "${var.vpn_gateway_public_ip_name}-${count.index + 1}"
+  # name                = var.vpn_gateway_public_ip_name
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   allocation_method   = "Static"
   sku                 = "Standard"
+  zones               = ["1", "2", "3"]
 }
 
 resource "azurerm_virtual_network_gateway" "hub_vpngw" {
@@ -14,13 +17,22 @@ resource "azurerm_virtual_network_gateway" "hub_vpngw" {
   type     = "Vpn"
   vpn_type = "RouteBased"
 
-  active_active = false
+  active_active = true
   bgp_enabled   = true
   sku           = var.vpn_gateway_sku
 
+  # First IP Configuration
   ip_configuration {
-    name                          = "vnetGatewayConfig"
-    public_ip_address_id          = azurerm_public_ip.vpngw_pip.id
+    name                          = "vnetGatewayConfig1"
+    public_ip_address_id          = azurerm_public_ip.vpngw_pip[0].id
+    private_ip_address_allocation = "Dynamic"
+    subnet_id                     = azurerm_subnet.gateway_subnet.id
+  }
+
+  # Second IP Configuration
+  ip_configuration {
+    name                          = "vnetGatewayConfig2"
+    public_ip_address_id          = azurerm_public_ip.vpngw_pip[1].id
     private_ip_address_allocation = "Dynamic"
     subnet_id                     = azurerm_subnet.gateway_subnet.id
   }
