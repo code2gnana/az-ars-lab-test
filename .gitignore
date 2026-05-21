@@ -8,4 +8,5 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 *.tfvars
-!terraform.tfvars.example
+terraform.tfvars.example
+.terraform.lock.hcl

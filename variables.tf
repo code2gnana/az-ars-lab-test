@@ -152,3 +152,21 @@ variable "spoke_b_to_hub_use_remote_gateways" {
   type        = bool
   default     = false
 }
+
+variable "spoke_test_vm_count" {
+  description = "Number of Windows test VMs to create in each spoke."
+  type        = number
+  default     = 2
+}
+
+variable "spoke_test_vm_size" {
+  description = "Azure VM size for spoke test VMs."
+  type        = string
+  default     = "Standard_B2s"
+}
+
+variable "spoke_test_vm_admin_username" {
+  description = "Local administrator username for spoke test VMs."
+  type        = string
+  default     = "azureuser"
+}

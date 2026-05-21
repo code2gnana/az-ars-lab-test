@@ -27,3 +27,24 @@ output "route_server_id" {
   description = "Azure Route Server resource ID."
   value       = azurerm_route_server.ars.id
 }
+
+output "spoke_test_vm_names" {
+  description = "Names of the Windows Server 2022 test VMs in both spokes."
+  value       = [for vm in azurerm_windows_virtual_machine.spoke_test : vm.name]
+}
+
+output "spoke_test_vm_private_ips" {
+  description = "Private IP addresses for spoke test VM NICs."
+  value       = { for k, nic in azurerm_network_interface.spoke_test : k => nic.ip_configuration[0].private_ip_address }
+}
+
+output "spoke_test_vm_admin_username" {
+  description = "Local administrator username for all spoke test VMs."
+  value       = var.spoke_test_vm_admin_username
+}
+
+output "spoke_test_vm_admin_password" {
+  description = "Generated local administrator password for all spoke test VMs."
+  value       = random_password.spoke_test_vm_admin_password.result
+  sensitive   = true
+}
