@@ -5,6 +5,13 @@ resource "azurerm_virtual_network" "hub" {
   address_space       = var.hub_address_space
 }
 
+resource "azurerm_virtual_network" "onprem" {
+  name                = var.onprem_vnet_name
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  address_space       = var.onprem_address_space
+}
+
 resource "azurerm_subnet" "hub_default" {
   name                 = "Subnet-Default"
   resource_group_name  = azurerm_resource_group.rg.name
@@ -24,6 +31,27 @@ resource "azurerm_subnet" "routeserver_subnet" {
   resource_group_name  = azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.hub.name
   address_prefixes     = var.route_server_subnet_prefixes
+}
+
+resource "azurerm_subnet" "nva_subnet" {
+  name                 = var.nva_subnet_name
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.hub.name
+  address_prefixes     = var.nva_subnet_prefixes
+}
+
+resource "azurerm_subnet" "onprem_default" {
+  name                 = "Subnet-Default"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.onprem.name
+  address_prefixes     = var.onprem_default_subnet_prefixes
+}
+
+resource "azurerm_subnet" "onprem_gateway_subnet" {
+  name                 = "GatewaySubnet"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.onprem.name
+  address_prefixes     = var.onprem_gateway_subnet_prefixes
 }
 
 resource "azurerm_virtual_network" "spoke_a" {
