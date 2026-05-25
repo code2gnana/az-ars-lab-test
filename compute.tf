@@ -129,16 +129,16 @@ resource "azurerm_windows_virtual_machine" "spoke_test" {
   ]
 }
 
-resource "azurerm_virtual_machine_extension" "spoke_test_network_tools" {
-  for_each                   = azurerm_windows_virtual_machine.spoke_test
-  name                       = "install-network-tools"
-  virtual_machine_id         = each.value.id
-  publisher                  = "Microsoft.Compute"
-  type                       = "CustomScriptExtension"
-  type_handler_version       = "1.10"
-  auto_upgrade_minor_version = true
+# resource "azurerm_virtual_machine_extension" "spoke_test_network_tools" {
+#   for_each                   = azurerm_windows_virtual_machine.spoke_test
+#   name                       = "install-network-tools"
+#   virtual_machine_id         = each.value.id
+#   publisher                  = "Microsoft.Compute"
+#   type                       = "CustomScriptExtension"
+#   type_handler_version       = "1.10"
+#   auto_upgrade_minor_version = true
 
-  settings = jsonencode({
-    commandToExecute = "powershell -ExecutionPolicy Bypass -Command \"$ProgressPreference='SilentlyContinue'; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12; if (-not (Get-Command choco -ErrorAction SilentlyContinue)) { Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')) }; choco feature enable -n allowGlobalConfirmation; choco install nmap iperf3 -y\""
-  })
-}
+#   settings = jsonencode({
+#     commandToExecute = "powershell -ExecutionPolicy Bypass -Command \"$ProgressPreference='SilentlyContinue'; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12; if (-not (Get-Command choco -ErrorAction SilentlyContinue)) { Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')) }; choco feature enable -n allowGlobalConfirmation; choco install nmap iperf3 -y\""
+#   })
+# }

@@ -156,7 +156,7 @@ variable "spoke_b_to_hub_use_remote_gateways" {
 variable "spoke_test_vm_count" {
   description = "Number of Windows test VMs to create in each spoke."
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "spoke_test_vm_size" {
