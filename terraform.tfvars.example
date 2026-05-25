@@ -1,17 +1,23 @@
-resource_group_name = "rg-ars-leak-testing"
+resource_group_name = "rg-ars-end-to-end-lab"
 location            = "eastus"
 
 hub_vnet_name     = "vnet-hub"
+onprem_vnet_name  = "vnet-onprem"
 spoke_a_vnet_name = "vnet-spoke-a"
 spoke_b_vnet_name = "vnet-spoke-b"
 
 hub_address_space     = ["10.0.0.0/16"]
+onprem_address_space  = ["192.168.0.0/16"]
 spoke_a_address_space = ["10.1.0.0/16"]
 spoke_b_address_space = ["10.2.0.0/16"]
 
 hub_default_subnet_prefixes      = ["10.0.0.0/24"]
 gateway_subnet_prefixes          = ["10.0.254.0/24"]
 route_server_subnet_prefixes     = ["10.0.253.0/27"]
+nva_subnet_name                  = "NvaSubnet"
+nva_subnet_prefixes              = ["10.0.1.0/24"]
+onprem_default_subnet_prefixes   = ["192.168.1.0/24"]
+onprem_gateway_subnet_prefixes   = ["192.168.254.0/24"]
 spoke_a_default_subnet_prefixes  = ["10.1.0.0/24"]
 spoke_b_default_subnet_prefixes  = ["10.2.0.0/24"]
 
@@ -19,11 +25,34 @@ vpn_gateway_name           = "vpngw-hub"
 vpn_gateway_sku            = "VpnGw1"
 vpn_gateway_bgp_asn        = 65515
 vpn_gateway_public_ip_name = "pip-vpngw"
+hub_vpn_gateway_active_active = false
+
+onprem_vpn_gateway_name           = "vpngw-onprem"
+onprem_vpn_gateway_sku            = "VpnGw1"
+onprem_vpn_gateway_bgp_asn        = 65001
+onprem_vpn_gateway_public_ip_name = "pip-vpngw-onprem"
 
 route_server_name                             = "ars-hub"
 route_server_public_ip_name                   = "pip-routeserver"
 route_server_sku                              = "Standard"
 route_server_branch_to_branch_traffic_enabled = false
+
+hub_local_network_gateway_name    = "lng-hub-representation"
+onprem_local_network_gateway_name = "lng-onprem-representation"
+hub_to_onprem_connection_name     = "conn-hub-to-onprem"
+onprem_to_hub_connection_name     = "conn-onprem-to-hub"
+onprem_bgp_peering_address_override = "192.168.254.5"
+vpn_shared_key                    = "AzureSecretBGPKey123!"
+
+nva_nic_name            = "nic-nva-hub"
+nva_private_ip_address  = "10.0.1.10"
+nva_vm_name             = "vm-nva-hub"
+nva_vm_size             = "Standard_B2s"
+nva_admin_username      = "azureadmin"
+nva_admin_password      = "AzureRouteLab123!!"
+nva_bgp_connection_name = "conn-ars-to-nva"
+nva_bgp_asn             = 65002
+nva_advertised_route    = "172.16.0.0/24"
 
 hub_to_spoke_a_allow_gateway_transit = true
 spoke_a_to_hub_use_remote_gateways   = true
