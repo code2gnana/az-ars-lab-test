@@ -136,7 +136,13 @@ variable "vpn_gateway_sku" {
 }
 
 variable "vpn_gateway_bgp_asn" {
-  description = "BGP ASN for the VPN gateway."
+  description = "BGP ASN for the hub VPN gateway."
+  type        = number
+  default     = 65010
+}
+
+variable "ars_bgp_asn" {
+  description = "BGP ASN for Azure Route Server (Microsoft-managed value is 65515)."
   type        = number
   default     = 65515
 }

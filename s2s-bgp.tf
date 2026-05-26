@@ -18,7 +18,7 @@ resource "azurerm_local_network_gateway" "lng_onprem" {
 
   bgp_settings {
     asn                 = var.onprem_vpn_gateway_bgp_asn
-    bgp_peering_address = azurerm_virtual_network_gateway.onprem_vpngw.bgp_settings[0].peering_addresses[0].default_addresses[0]
+    bgp_peering_address = var.onprem_bgp_peering_address_override != null ? var.onprem_bgp_peering_address_override : azurerm_virtual_network_gateway.onprem_vpngw.bgp_settings[0].peering_addresses[0].default_addresses[0]
   }
 }
 

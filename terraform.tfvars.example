@@ -23,7 +23,8 @@ spoke_b_default_subnet_prefixes  = ["10.2.0.0/24"]
 
 vpn_gateway_name           = "vpngw-hub"
 vpn_gateway_sku            = "VpnGw1"
-vpn_gateway_bgp_asn        = 65515
+vpn_gateway_bgp_asn        = 65010
+ars_bgp_asn                = 65515
 vpn_gateway_public_ip_name = "pip-vpngw"
 hub_vpn_gateway_active_active = false
 
