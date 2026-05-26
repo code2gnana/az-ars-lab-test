@@ -10,26 +10,26 @@ Use this minimal flow to deploy and run a first-pass validation.
 terraform init
 ```
 
-2. Set lab values
+1. Set lab values
 
 ```bash
 cp terraform.tfvars.example terraform.tfvars
 ```
 
-3. Validate and preview
+1. Validate and preview
 
 ```bash
 terraform validate
 terraform plan
 ```
 
-4. Deploy
+1. Deploy
 
 ```bash
 terraform apply -auto-approve
 ```
 
-5. Quick route checks
+1. Quick route checks
 
 ```bash
 az network vnet-gateway list-learned-routes \
@@ -224,13 +224,13 @@ terraform init
 terraform validate
 ```
 
-2. Review change set
+1. Review change set
 
 ```bash
 terraform plan
 ```
 
-3. Apply
+1. Apply
 
 ```bash
 terraform apply -auto-approve
@@ -247,12 +247,12 @@ Testing is split into three layers.
 - Hub VPN gateway to on-prem VPN gateway
 - NVA FRR peers to ARS (`.4` and `.5` in RouteServerSubnet)
 
-2. Confirm route inventory:
+1. Confirm route inventory:
 
 - ARS has learned `172.16.0.0/24` from NVA
 - ARS has learned `192.168.0.0/16` from simulated on-prem
 
-3. Confirm effective routes at NIC/subnet level:
+1. Confirm effective routes at NIC/subnet level:
 
 - Spoke A NIC effective routes should include expected learned prefixes
 - Spoke B NIC effective routes should not include remote-gateway learned prefixes
@@ -277,13 +277,13 @@ Optional throughput check:
 
 Use this matrix to decide pass/fail:
 
-| Assertion | Expected Result |
-|---|---|
-| ARS learns `172.16.0.0/24` from NVA | Yes |
-| Spoke A receives NVA synthetic route | Yes |
-| Spoke B receives NVA synthetic route | No |
-| On-prem receives unexpected NVA route due to branch-to-branch path | No |
-| Route visibility matches peering transit flags | Yes |
+| Assertion                                                          | Expected Result |
+| ------------------------------------------------------------------ | ----------------|
+| ARS learns `172.16.0.0/24` from NVA                                | Yes             |
+| Spoke A receives NVA synthetic route                               | Yes             |
+| Spoke B receives NVA synthetic route                               | No              |
+| On-prem receives unexpected NVA route due to branch-to-branch path | No              |
+| Route visibility matches peering transit flags                     | Yes             |
 
 ## Suggested Verification Commands
 
@@ -319,17 +319,17 @@ Adjust resource names if your tfvars values differ.
 - Symptom: resource already exists and must be imported
 - Fix: `terraform import <address> <resource-id>`
 
-2. Counted resources referenced without index
+1. Counted resources referenced without index
 
 - Symptom: missing resource instance key
 - Fix: use explicit index, for example `resource[0]`
 
-3. Imported gateway peering address not yet populated
+1. Imported gateway peering address not yet populated
 
 - Symptom: invalid index when reading `default_addresses[0]`
 - Fix: use a temporary override variable for on-prem BGP peering address, then return to dynamic lookup after convergence
 
-4. Non-AZ VPN SKU
+1. Non-AZ VPN SKU
 
 - Symptom: `NonAzSkusNotAllowedForVPNGateway`
 - Fix: use `VpnGw*AZ` SKUs

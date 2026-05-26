@@ -180,6 +180,7 @@ terraform destroy
 ### 5.2 Detailed Test Procedures
 
 #### T1. Verify S2S IPsec Tunnel
+
 **Goal:** Confirm IPsec tunnel between hub and on-prem is up.
 
 ```bash
@@ -195,6 +196,7 @@ az network vpn-connection show \
 ---
 
 #### T2. Verify Hub BGP Peer States
+
 **Goal:** Confirm all expected BGP neighbors on the hub VPN gateway are `Connected`.
 
 ```bash
@@ -205,6 +207,7 @@ az network vnet-gateway list-bgp-peer-status \
 ```
 
 **Pass criteria:**
+
 - `192.168.254.4` (ASN 65001) → `Connected`, RoutesReceived ≥ 1
 - `10.2.253.4` and `10.2.253.5` (ASN 65515) → `Connected`
 - Internal IBGP peers (10.2.254.x ASN 65010) `Connected` cross-instance
@@ -214,6 +217,7 @@ az network vnet-gateway list-bgp-peer-status \
 ---
 
 #### T3. Verify Hub-Learned Routes
+
 **Goal:** Confirm hub gateway has learned `192.168.0.0/16` from on-prem.
 
 ```bash
@@ -228,6 +232,7 @@ az network vnet-gateway list-learned-routes \
 ---
 
 #### T4. Verify NVA ↔ ARS BGP
+
 **Goal:** Confirm NVA peers with both ARS instances.
 
 ```bash
@@ -238,6 +243,7 @@ az network routeserver peering list \
 ```
 
 Inside the NVA (SSH via NVA public IP if exposed, or via serial console):
+
 ```bash
 sudo vtysh -c "show bgp summary"
 sudo vtysh -c "show ip bgp"
@@ -248,6 +254,7 @@ sudo vtysh -c "show ip bgp"
 ---
 
 #### T5. Verify NVA Synthetic Route Reaches ARS
+
 **Goal:** ARS should learn `172.16.0.0/24` from NVA and re-advertise to hub VPN gateway.
 
 ```bash
@@ -259,6 +266,7 @@ az network routeserver peering list-learned-routes \
 ```
 
 And on the hub gateway:
+
 ```bash
 az network vnet-gateway list-learned-routes \
   --resource-group rg-ars-end-to-end-lab \
@@ -271,6 +279,7 @@ az network vnet-gateway list-learned-routes \
 ---
 
 #### T6. Verify Spoke A Learns On-Prem Route
+
 **Goal:** Spoke A NIC effective routes should include `192.168.0.0/16` via `VirtualNetworkGateway`.
 
 ```bash
@@ -281,6 +290,7 @@ az network nic show-effective-route-table \
 ```
 
 **Pass criteria:**
+
 ```
 Source                 State    Address Prefix    Next Hop Type          Next Hop IP
 VirtualNetworkGateway  Active   192.168.0.0/16    VirtualNetworkGateway  10.2.254.5 10.2.254.4
@@ -289,6 +299,7 @@ VirtualNetworkGateway  Active   192.168.0.0/16    VirtualNetworkGateway  10.2.25
 ---
 
 #### T7. Verify Spoke B Does NOT Have Usable On-Prem Path
+
 **Goal:** Spoke B should NOT have a forwardable route to on-prem.
 
 ```bash
@@ -299,6 +310,7 @@ az network nic show-effective-route-table \
 ```
 
 **Pass criteria:**
+
 ```
 Source    State    Address Prefix    Next Hop Type     Next Hop IP
 Default   Active   192.168.0.0/16    None
@@ -309,6 +321,7 @@ The prefix appears (it's a system-known prefix) but **Next Hop Type = None** mea
 ---
 
 #### T8. Verify No VirtualNetworkGateway-Sourced Routes on Spoke B
+
 **Goal:** Confirm gateway transit is not leaking BGP routes into Spoke B.
 
 ```bash
@@ -323,6 +336,7 @@ az network nic show-effective-route-table \
 ---
 
 #### T9. Verify Spoke-to-Spoke Transit UDR
+
 **Goal:** UDR forces spoke-to-spoke traffic through the NVA.
 
 ```bash
@@ -340,10 +354,12 @@ az network route-table show \
 ```
 
 **Pass criteria:**
+
 - Spoke A RT: `10.4.0.0/16 → VirtualAppliance → 10.2.1.10`
 - Spoke B RT: `10.3.0.0/16 → VirtualAppliance → 10.2.1.10`
 
 And the User-sourced rows appear on each spoke NIC's effective route table:
+
 ```
 User   Active   10.4.0.0/16   VirtualAppliance   10.2.1.10   (on Spoke A)
 User   Active   10.3.0.0/16   VirtualAppliance   10.2.1.10   (on Spoke B)
@@ -352,6 +368,7 @@ User   Active   10.3.0.0/16   VirtualAppliance   10.2.1.10   (on Spoke B)
 ---
 
 #### T10. Branch-to-Branch Isolation
+
 **Goal:** With `route_server_branch_to_branch_traffic_enabled = false`, the on-prem branch should not learn NVA-injected routes (and vice versa), preventing routes learned through one branch from being advertised to another.
 
 ```bash
@@ -367,6 +384,7 @@ az network vnet-gateway list-advertised-routes \
 ---
 
 #### T11. End-to-End Host Reachability — Spoke A → On-Prem VM
+
 **Goal:** Validate data-plane reachability through hub gateway.
 
 ```bash
@@ -387,6 +405,7 @@ az vm run-command invoke \
 ---
 
 #### T12. End-to-End Isolation — Spoke B → On-Prem VM
+
 **Goal:** Validate Spoke B cannot reach on-prem.
 
 ```bash
@@ -646,46 +665,59 @@ ip route show 172.16.0.0/24
 ## 7. Troubleshooting Playbook
 
 ### 7.1 `InvalidAsn` on Local Network Gateway
+
 **Symptom:** `lng-hub-representation` fails to create with `InvalidAsn`.
 **Cause:** ASN value matched ARS (65515), which is reserved.
 **Fix:** Use distinct ASN for hub VPN gateway (e.g. 65010). The lab pins this in `terraform.tfvars`:
+
 ```
 vpn_gateway_bgp_asn = 65010
 ars_bgp_asn         = 65515
 ```
 
 ### 7.2 On-Prem BGP Peer Stuck in `Connecting`
+
 **Symptom:** `192.168.254.5` shows `Connecting` indefinitely.
 **Cause:** Active-active gateway exposes two BGP peering addresses; the LNG must use the *first* one.
 **Fix:**
+
 ```
 onprem_bgp_peering_address_override = "192.168.254.4"
 ```
+
 Then `terraform apply`. Verify with `list-bgp-peer-status` until `Connected`.
 
 ### 7.3 NVA Synthetic Route Not Advertised
+
 **Symptom:** ARS doesn't learn `172.16.0.0/24` from NVA.
 **Cause:** FRR `network 172.16.0.0/24` requires the prefix to already exist in the kernel routing table.
 **Fix:** Cloud-init injects a blackhole route before starting FRR:
+
 ```bash
 ip route replace blackhole 172.16.0.0/24
 ```
+
 Verify on the NVA: `ip route show 172.16.0.0/24` should show `blackhole`.
 
 ### 7.4 Spoke B Shows On-Prem Prefix in Effective Routes
+
 **Symptom:** `192.168.0.0/16` appears in `nic-spoke-b-win22-1` effective routes.
 **Diagnosis:** Look at the `Next Hop Type`.
+
 - `None` → expected, prefix is system-known but non-forwardable. Isolation OK.
 - `VirtualNetworkGateway` → unexpected, gateway transit leaked. Re-check `peering.tf` settings.
 
 ### 7.5 Ping Fails via `Test-Connection` Under Run Command
+
 **Symptom:** `Test-Connection -Quiet` returns `False` even though routes look correct.
 **Cause:** Azure Run Command sandbox restricts raw ICMP sockets on some Windows images.
 **Workaround:** Use `Test-NetConnection -Port 3389` (TCP) which works reliably.
 
 ### 7.6 Subnet NSG Association Missing
+
 **Symptom:** Test VM NIC `effective NSG` returns null.
 **Cause:** NSG associated to subnet, not NIC — this is by design here. Confirm with:
+
 ```bash
 az network vnet subnet show \
   --resource-group rg-ars-end-to-end-lab \
