@@ -83,3 +83,24 @@ output "spoke_test_vm_admin_password" {
   value       = random_password.spoke_test_vm_admin_password.result
   sensitive   = true
 }
+
+output "onprem_test_vm_name" {
+  description = "Name of the on-prem Windows Server 2022 test VM."
+  value       = azurerm_windows_virtual_machine.onprem_test.name
+}
+
+output "onprem_test_vm_private_ip" {
+  description = "Private IP address of the on-prem test VM NIC."
+  value       = azurerm_network_interface.onprem_test.ip_configuration[0].private_ip_address
+}
+
+output "onprem_test_vm_admin_username" {
+  description = "Local administrator username for the on-prem test VM."
+  value       = var.onprem_test_vm_admin_username
+}
+
+output "onprem_test_vm_admin_password" {
+  description = "Generated local administrator password for the on-prem test VM."
+  value       = random_password.onprem_test_vm_admin_password.result
+  sensitive   = true
+}

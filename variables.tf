@@ -280,6 +280,36 @@ variable "spoke_test_vm_admin_username" {
   default     = "azureuser"
 }
 
+variable "onprem_test_vm_name" {
+  description = "Name of the on-prem Windows test VM."
+  type        = string
+  default     = "vm-onprem-win22-1"
+}
+
+variable "onprem_test_vm_computer_name" {
+  description = "Computer name for the on-prem Windows test VM."
+  type        = string
+  default     = "onpremvm1"
+}
+
+variable "onprem_test_vm_nic_name" {
+  description = "Network interface name for the on-prem Windows test VM."
+  type        = string
+  default     = "nic-onprem-win22-1"
+}
+
+variable "onprem_test_vm_size" {
+  description = "Azure VM size for the on-prem Windows test VM."
+  type        = string
+  default     = "Standard_B2s"
+}
+
+variable "onprem_test_vm_admin_username" {
+  description = "Local administrator username for the on-prem test VM."
+  type        = string
+  default     = "azureuser"
+}
+
 variable "nva_nic_name" {
   description = "Network interface name for the Linux NVA."
   type        = string

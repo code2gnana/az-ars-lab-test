@@ -85,6 +85,16 @@ resource "random_password" "spoke_test_vm_admin_password" {
   override_special = "_%@"
 }
 
+resource "random_password" "onprem_test_vm_admin_password" {
+  length           = 20
+  min_upper        = 2
+  min_lower        = 2
+  min_numeric      = 2
+  min_special      = 2
+  special          = true
+  override_special = "_%@"
+}
+
 resource "azurerm_network_interface" "spoke_test" {
   for_each            = local.spoke_test_vm_map
   name                = each.value.nic_name
@@ -128,6 +138,85 @@ resource "azurerm_windows_virtual_machine" "spoke_test" {
     azurerm_subnet_network_security_group_association.spoke_b_default
   ]
 }
+
+resource "azurerm_network_security_group" "onprem_test" {
+  name                = "nsg-onprem-test"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+resource "azurerm_network_security_rule" "allow_icmp_to_onprem_from_spokes" {
+  name                         = "allow-icmp-to-onprem-from-spokes"
+  priority                     = 100
+  direction                    = "Inbound"
+  access                       = "Allow"
+  protocol                     = "Icmp"
+  source_port_range            = "*"
+  destination_port_range       = "*"
+  source_address_prefixes      = [var.spoke_a_address_space[0], var.spoke_b_address_space[0]]
+  destination_address_prefixes = [var.onprem_address_space[0]]
+  resource_group_name          = azurerm_resource_group.rg.name
+  network_security_group_name  = azurerm_network_security_group.onprem_test.name
+}
+
+resource "azurerm_subnet_network_security_group_association" "onprem_default" {
+  subnet_id                 = azurerm_subnet.onprem_default.id
+  network_security_group_id = azurerm_network_security_group.onprem_test.id
+}
+
+resource "azurerm_network_interface" "onprem_test" {
+  name                = var.onprem_test_vm_nic_name
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  ip_configuration {
+    name                          = "ipconfig1"
+    subnet_id                     = azurerm_subnet.onprem_default.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+resource "azurerm_windows_virtual_machine" "onprem_test" {
+  name                = var.onprem_test_vm_name
+  computer_name       = var.onprem_test_vm_computer_name
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  size                = var.onprem_test_vm_size
+  admin_username      = var.onprem_test_vm_admin_username
+  admin_password      = random_password.onprem_test_vm_admin_password.result
+  network_interface_ids = [
+    azurerm_network_interface.onprem_test.id
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "MicrosoftWindowsServer"
+    offer     = "WindowsServer"
+    sku       = "2022-datacenter"
+    version   = "latest"
+  }
+
+  depends_on = [
+    azurerm_subnet_network_security_group_association.onprem_default
+  ]
+}
+
+# resource "azurerm_virtual_machine_extension" "onprem_test_enable_icmp" {
+#   name                       = "enable-icmp"
+#   virtual_machine_id         = azurerm_windows_virtual_machine.onprem_test.id
+#   publisher                  = "Microsoft.Compute"
+#   type                       = "CustomScriptExtension"
+#   type_handler_version       = "1.10"
+#   auto_upgrade_minor_version = true
+
+#   settings = jsonencode({
+#     commandToExecute = "powershell -ExecutionPolicy Bypass -Command \"Enable-NetFirewallRule -DisplayName 'File and Printer Sharing (Echo Request - ICMPv4-In)'; exit 0\""
+#   })
+# }
 
 # resource "azurerm_virtual_machine_extension" "spoke_test_network_tools" {
 #   for_each                   = azurerm_windows_virtual_machine.spoke_test
