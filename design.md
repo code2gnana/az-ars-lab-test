@@ -18,25 +18,25 @@ graph TD
     class OnPremGW,OnPremDefault compStyle;
 
     %% Hub VNet Block
-    subgraph HubVNet [Hub Virtual Network <br/> 10.0.0.0/16]
-        ARS[Azure Route Server<br/>'ars-hub'<br/>RouteServerSubnet: 10.0.253.0/27<br/>IPs: 10.0.253.4 & .5]
-        VPNGW[Virtual Network Gateway<br/>'vpngw-hub'<br/>GatewaySubnet: 10.0.254.0/24<br/>ASN: 65515]
-        NVA[Linux NVA Ubuntu/FRR<br/>'vm-nva-hub'<br/>IP: 10.0.1.10 - ASN: 65002<br/>Injects: 172.16.0.0/24]
-        HubDefault[Subnet-Default<br/>10.0.0.0/24]
+    subgraph HubVNet [Hub Virtual Network <br/> 10.2.0.0/16]
+        ARS[Azure Route Server<br/>'ars-hub'<br/>RouteServerSubnet: 10.2.253.0/27<br/>IPs: 10.2.253.4 & .5]
+        VPNGW[Virtual Network Gateway<br/>'vpngw-hub'<br/>GatewaySubnet: 10.2.254.0/24<br/>ASN: 65515]
+        NVA[Linux NVA Ubuntu/FRR<br/>'vm-nva-hub'<br/>IP: 10.2.1.10 - ASN: 65002<br/>Injects: 172.16.0.0/24]
+        HubDefault[Subnet-Default<br/>10.2.0.0/24]
     end
     class HubVNet hubStyle;
     class ARS,VPNGW,NVA,HubDefault compStyle;
 
     %% Spoke A Block
-    subgraph SpokeAVNet [Spoke A Virtual Network <br/> 10.1.0.0/16]
-        SpokeADefault[Subnet-Default<br/>10.1.0.0/24]
+    subgraph SpokeAVNet [Spoke A Virtual Network <br/> 10.3.0.0/16]
+        SpokeADefault[Subnet-Default<br/>10.3.0.0/24]
     end
     class SpokeAVNet spokeAStyle;
     class SpokeADefault compStyle;
 
     %% Spoke B Block
-    subgraph SpokeBVNet [Spoke B Virtual Network <br/> 10.2.0.0/16]
-        SpokeBDefault[Subnet-Default<br/>10.2.0.0/24]
+    subgraph SpokeBVNet [Spoke B Virtual Network <br/> 10.4.0.0/16]
+        SpokeBDefault[Subnet-Default<br/>10.4.0.0/24]
     end
     class SpokeBVNet spokeBStyle;
     class SpokeBDefault compStyle;

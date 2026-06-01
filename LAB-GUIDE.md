@@ -677,15 +677,33 @@ ars_bgp_asn         = 65515
 
 ### 7.2 On-Prem BGP Peer Stuck in `Connecting`
 
-**Symptom:** `192.168.254.5` shows `Connecting` indefinitely.
-**Cause:** Active-active gateway exposes two BGP peering addresses; the LNG must use the *first* one.
-**Fix:**
+**Symptom:** On-prem BGP peer (`192.168.254.4` or `192.168.254.5`) shows `Connecting` indefinitely.
+**Cause:** An active-active VPN gateway has two instances (`ipconfig1`, `ipconfig2`), each with its own BGP peering address inside the gateway subnet (`192.168.254.4` and `192.168.254.5`). The S2S connection's IPsec tunnel terminates on the gateway instance whose **public IP matches the LNG's `gateway_address`** — and the LNG's `bgp_peering_address` must equal the BGP address bound to *that same* instance. If LNG points to the BGP address on the *other* instance, the BGP session can never establish because no IPsec tunnel exists to carry it.
+**Fix:** Read the live mapping and align the override.
 
-```
-onprem_bgp_peering_address_override = "192.168.254.4"
+```bash
+az network vnet-gateway show \
+  --resource-group rg-ars-end-to-end-lab --name vpngw-onprem \
+  --query 'bgpSettings.bgpPeeringAddresses[].{ip:ipconfigurationId,addrs:defaultBgpIpAddresses}' -o json
+
+az network vnet-gateway show \
+  --resource-group rg-ars-end-to-end-lab --name vpngw-onprem \
+  --query 'ipConfigurations[].{name:name,pip:publicIpAddress.id}' -o json
 ```
 
-Then `terraform apply`. Verify with `list-bgp-peer-status` until `Connected`.
+Identify which `ipconfig` is bound to `pip-vpngw-onprem-1` (the public IP referenced by the hub's LNG `gateway_address`), then set:
+
+```hcl
+onprem_bgp_peering_address_override = "<bgp address of that ipconfig>"
+```
+
+`terraform apply`, then `az network vnet-gateway list-bgp-peer-status -g rg-ars-end-to-end-lab -n vpngw-hub -o table` until `Connected`.
+
+**Pitfall — addresses flip after gateway reset:** Resetting either VPN gateway (or Azure-side maintenance) can swap which BGP peering address is bound to `ipconfig1` vs `ipconfig2`. The override that worked yesterday may be wrong today. This lab uses a hardcoded override for simplicity; for production, prefer one of:
+
+- **Dual LNGs / dual connections**, one per instance public IP, each with its matching BGP address.
+- **APIPA BGP IPs** (`169.254.21.x` custom BGP IPs on the gateway), which decouple BGP peering from the dynamic instance-level `192.168.254.x` mapping.
+- **Single-instance (non-active-active) gateway** for lab/test scenarios where redundancy is not required.
 
 ### 7.3 NVA Synthetic Route Not Advertised
 
@@ -764,7 +782,8 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-b-win22-1 \
 ## 9. Lessons Learned / Key Findings
 
 1. **ASN reuse causes silent platform errors** — Always decouple ARS ASN (65515) from VPN gateway and LNG ASNs.
-2. **Active-active gateways have multiple BGP peering addresses** — Only one needs to be wired into the LNG. The second peer may remain in `Connecting`; this is benign.
+2. **Active-active gateways have multiple BGP peering addresses** — Only one needs to be wired into the LNG (the one bound to the same instance whose public IP the LNG's `gateway_address` references). The second peer may remain in `Connecting`; this is benign.
+2a. **Active-active BGP peering addresses can flip across `ipconfig1`/`ipconfig2` after a gateway reset.** A hardcoded `bgp_peering_address` on the LNG is fragile: if the bound BGP address moves to the other instance, the BGP session fails over IPsec because the LNG/IPsec endpoint pairing no longer matches. Mitigations: dual LNG/connection per instance, APIPA custom BGP IPs, or non-active-active for lab use. See §7.2.
 3. **`Next Hop Type = None` is the marker of route isolation** — A prefix being visible in effective routes does not mean it is reachable. Always inspect the next hop type.
 4. **`branch_to_branch_traffic_enabled = false` on ARS** prevents cross-branch propagation but does NOT block VNet peering data-plane behavior. Peering transit flags (`allow_gateway_transit`, `use_remote_gateways`) control spoke-to-gateway route flow.
 5. **FRR `network` directive needs an existing route** — use blackhole injection to advertise synthetic prefixes.
