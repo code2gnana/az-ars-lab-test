@@ -1,5 +1,9 @@
 # Azure Route Server Route Leakage Lab
 
+## Detailed Lab Analysis
+
+For the full deep-dive document covering the issue statement, architecture rationale, design decisions, validation strategy, and expected outcomes, see [LAB-DETAILED-ANALYSIS.md](LAB-DETAILED-ANALYSIS.md).
+
 ## Quick Start
 
 Use this minimal flow to deploy and run a first-pass validation.
@@ -93,8 +97,8 @@ graph TD
     end
 
     subgraph Hub [Hub VNet]
-      HPGW[vpngw-hub ASN 65515]
-      ARS[Azure Route Server]
+      HPGW[vpngw-hub ASN 65010]
+      ARS[Azure Route Server ASN 65515 branch-to-branch disabled]
       NVA[Linux NVA FRR ASN 65002]
       HSN[Subnet-Default]
     end
@@ -112,7 +116,7 @@ graph TD
     NVA <-->|eBGP multihop| ARS
 
     Hub <-->|Peering transit enabled| SA
-    Hub <-->|Peering transit disabled| SB
+    Hub <--->|Peering transit disabled| SB
 
     ARS -.->|Learns 192.168.0.0/16| SAHOST
     ARS -.->|Learns 172.16.0.0/24 from NVA| SAHOST

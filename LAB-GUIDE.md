@@ -2,6 +2,8 @@
 
 A comprehensive lab to validate Azure Route Server (ARS) behavior, hub-spoke route propagation, NVA-injected synthetic routes, branch-to-branch traffic isolation, and spoke-to-spoke transit through a Linux NVA.
 
+For the full deep-dive document covering the issue statement, architecture rationale, design decisions, validation strategy, and expected outcomes, see [LAB-DETAILED-ANALYSIS.md](LAB-DETAILED-ANALYSIS.md).
+
 ---
 
 ## 1. Purpose
@@ -23,19 +25,19 @@ This lab demonstrates and validates the following Azure networking behaviors:
 ### 2.1 Network Topology
 
 ```
-                 ┌────────────────────────────────────────────────┐
-                 │              vnet-hub  10.2.0.0/16             │
-                 │                                                │
-                 │  GatewaySubnet    RouteServerSubnet   NvaSubnet│
-                 │   10.2.254.0/24    10.2.253.0/27    10.2.1.0/24│
-                 │   ┌─────────┐    ┌──────────────┐  ┌─────────┐ │
-                 │   │ vpngw-  │    │  ars-hub     │  │ vm-nva- │ │
-                 │   │  hub    │◄──►│ ASN 65515    │◄►│  hub    │ │
+                 ┌──────────────────────────────────────────────── ┐
+                 │              vnet-hub  10.2.0.0/16              │
+                 │                                                 │
+                 │  GatewaySubnet    RouteServerSubnet   NvaSubnet │
+                 │   10.2.254.0/24    10.2.253.0/27    10.2.1.0/24 │
+                 │   ┌─────────┐    ┌──────────────┐   ┌─────────┐ │
+                 │   │ vpngw-  │    │  ars-hub     │   │ vm-nva- │ │
+                 │   │  hub    │◄──►│ ASN 65515    │◄► │  hub    │ │
                  │   │ ASN     │BGP │ 10.2.253.4/5 │BGP│ FRR     │ │
-                 │   │ 65010   │    │              │  │ ASN     │ │
-                 │   │ A/A     │    └──────────────┘  │ 65002   │ │
-                 │   └────┬────┘                      └─────────┘ │
-                 │        │ S2S IPsec + BGP                       │
+                 │   │ 65010   │    │              │   │ ASN     │ │
+                 │   │ A/A     │    └──────────────┘   │ 65002   │ │
+                 │   └────┬────┘                       └─────────┘ │
+                 │        │ S2S IPsec + BGP                        │
                  └────────┼────────────────────────────────────────┘
                           │              │                     │
                   Peering │              │ Peering             │ Peering
@@ -117,7 +119,7 @@ This lab demonstrates and validates the following Azure networking behaviors:
 - **`vpngw-onprem`** — Active-active simulated on-prem VPN gateway, ASN 65001.
 - **`ars-hub`** — Azure Route Server, ASN 65515, branch-to-branch traffic disabled.
 - **`vm-nva-hub`** — Ubuntu 22.04 with FRR, ASN 65002, advertises `172.16.0.0/24`.
-- **`lng-hub-representation`** / **`lng-onprem-representation`** — Local network gateways with BGP peering addresses (`10.2.254.x` for hub, `192.168.254.4` for on-prem after override fix).
+- **`lng-hub-representation`** / **`lng-onprem-representation`** — Local network gateways with BGP peering addresses (`10.2.254.x` for hub, and the matching on-prem active-active BGP peering IP for `lng-onprem-representation`).
 - **`conn-hub-to-onprem`** / **`conn-onprem-to-hub`** — IPsec connections with `bgp_enabled = true`.
 - **`rt-spoke-a-transit`** / **`rt-spoke-b-transit`** — Route tables sending opposite-spoke traffic through NVA at `10.2.1.10`.
 - **`vm-spoke-a-win22-1`** / **`vm-spoke-b-win22-1`** / **`vm-onprem-win22-1`** — Windows Server 2022 test VMs.
@@ -146,7 +148,7 @@ terraform apply tfplan
 
 ### 4.2 Important Configuration Notes
 
-- **`onprem_bgp_peering_address_override = "192.168.254.4"`** — required because the active-active on-prem gateway exposes two BGP peering addresses (`192.168.254.4` and `192.168.254.5`); the hub's `lng-onprem-representation` must point at the **first** one (`.4`) to establish BGP. Using `.5` leaves the peer stuck in `Connecting`.
+- **`onprem_bgp_peering_address_override`** — set this to the on-prem BGP peering address that matches the active S2S endpoint/gateway instance. Active-active on-prem gateways expose two BGP peering addresses (typically `.4` and `.5`), and using a non-matching address can leave the peer in `Connecting`.
 - **ASN decoupling** — `vpn_gateway_bgp_asn` (65010) must NOT equal `ars_bgp_asn` (65515). Using 65515 on the LNG fails with `InvalidAsn`.
 - **NVA blackhole route** — cloud-init runs `ip route replace blackhole 172.16.0.0/24` before FRR starts so the FRR `network 172.16.0.0/24` statement has a route to originate.
 
@@ -208,11 +210,11 @@ az network vnet-gateway list-bgp-peer-status \
 
 **Pass criteria:**
 
-- `192.168.254.4` (ASN 65001) → `Connected`, RoutesReceived ≥ 1
+- One on-prem BGP peer IP (ASN 65001) → `Connected`, RoutesReceived ≥ 1
 - `10.2.253.4` and `10.2.253.5` (ASN 65515) → `Connected`
 - Internal IBGP peers (10.2.254.x ASN 65010) `Connected` cross-instance
 
-**If `192.168.254.5` is stuck in `Connecting`:** that is the *second* on-prem peering address; the override is set to `.4` and only one needs to come up for routing to work.
+**If one on-prem peer IP is stuck in `Connecting`:** verify `onprem_bgp_peering_address_override` matches the on-prem gateway instance used by the S2S connection, then re-check peer status.
 
 ---
 
@@ -227,7 +229,7 @@ az network vnet-gateway list-learned-routes \
   -o table
 ```
 
-**Pass criteria:** Row exists for `192.168.0.0/16` with `Origin = EBgp`, `SourcePeer = 192.168.254.4`, `AsPath = 65001`.
+**Pass criteria:** Row exists for `192.168.0.0/16` with `Origin = EBgp`, `SourcePeer` equal to the selected on-prem BGP peer IP, and `AsPath = 65001`.
 
 ---
 
@@ -375,7 +377,7 @@ User   Active   10.3.0.0/16   VirtualAppliance   10.2.1.10   (on Spoke B)
 az network vnet-gateway list-advertised-routes \
   --resource-group rg-ars-end-to-end-lab \
   --name vpngw-hub \
-  --peer 192.168.254.4 \
+  --peer <onprem-bgp-peer-ip> \
   -o table
 ```
 
@@ -492,7 +494,7 @@ az network vnet-gateway list-learned-routes \
 az network vnet-gateway list-advertised-routes \
   --resource-group rg-ars-end-to-end-lab \
   --name vpngw-hub \
-  --peer 192.168.254.4 \
+  --peer <onprem-bgp-peer-ip> \
   -o table
 
 # Gateway BGP peering addresses
