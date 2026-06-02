@@ -151,6 +151,7 @@ terraform apply tfplan
 - **`onprem_bgp_peering_address_override`** — set this to the on-prem BGP peering address that matches the active S2S endpoint/gateway instance. Active-active on-prem gateways expose two BGP peering addresses (typically `.4` and `.5`), and using a non-matching address can leave the peer in `Connecting`.
 - **ASN decoupling** — `vpn_gateway_bgp_asn` (65010) must NOT equal `ars_bgp_asn` (65515). Using 65515 on the LNG fails with `InvalidAsn`.
 - **NVA blackhole route** — cloud-init runs `ip route replace blackhole 172.16.0.0/24` before FRR starts so the FRR `network 172.16.0.0/24` statement has a route to originate.
+- **FRR eBGP policy requirement** — FRR may block route exchange with `State/PfxRcd = (Policy)` unless eBGP policy is explicitly configured. This lab disables that requirement with `no bgp ebgp-requires-policy` in NVA BGP config.
 
 ### 4.3 Teardown
 
@@ -257,17 +258,20 @@ sudo vtysh -c "show ip bgp"
 
 #### T5. Verify NVA Synthetic Route Reaches ARS
 
-**Goal:** ARS should learn `172.16.0.0/24` from NVA and re-advertise to hub VPN gateway.
+**Goal:** ARS should learn `172.16.0.0/24` from NVA. Re-advertisement to hub VPN gateway depends on Route Server branch-to-branch setting.
 
 ```bash
 az network routeserver peering list-learned-routes \
   --resource-group rg-ars-end-to-end-lab \
   --routeserver ars-hub \
   --name <nva-peer-name> \
+  --query "[RouteServiceRole_IN_0, RouteServiceRole_IN_1][][]" \
   -o table
 ```
 
-And on the hub gateway:
+Note: without the `--query` flattening, `-o table` may appear empty because this API returns an object with per-instance arrays (`RouteServiceRole_IN_0` and `RouteServiceRole_IN_1`) instead of a single flat list.
+
+Optional hub-gateway check (only when branch-to-branch is enabled):
 
 ```bash
 az network vnet-gateway list-learned-routes \
@@ -276,7 +280,11 @@ az network vnet-gateway list-learned-routes \
   -o table | grep 172.16
 ```
 
-**Pass criteria:** `172.16.0.0/24` appears in both outputs.
+**Pass criteria:**
+
+- `172.16.0.0/24` appears in ARS learned-routes for the NVA peer.
+- If `route_server_branch_to_branch_traffic_enabled = true`, `172.16.0.0/24` also appears in hub gateway learned-routes.
+- If `route_server_branch_to_branch_traffic_enabled = false` (this lab default), hub gateway is expected to NOT learn `172.16.0.0/24`.
 
 ---
 
@@ -525,6 +533,7 @@ az network routeserver peering list-learned-routes \
   --resource-group rg-ars-end-to-end-lab \
   --routeserver ars-hub \
   --name <peer-name> \
+  --query "[RouteServiceRole_IN_0, RouteServiceRole_IN_1][][]" \
   -o table
 
 # Routes advertised to a peer
@@ -709,15 +718,31 @@ onprem_bgp_peering_address_override = "<bgp address of that ipconfig>"
 
 ### 7.3 NVA Synthetic Route Not Advertised
 
-**Symptom:** ARS doesn't learn `172.16.0.0/24` from NVA.
-**Cause:** FRR `network 172.16.0.0/24` requires the prefix to already exist in the kernel routing table.
-**Fix:** Cloud-init injects a blackhole route before starting FRR:
+**Symptom A:** ARS doesn't learn `172.16.0.0/24` from NVA.
+**Cause A1:** FRR `network 172.16.0.0/24` requires the prefix to already exist in the kernel routing table.
+**Cause A2:** FRR session is up but route exchange is policy-blocked, shown as `(Policy)` in BGP summary.
+**Fix A:** Ensure both kernel route presence and FRR policy behavior are correct:
 
 ```bash
 ip route replace blackhole 172.16.0.0/24
+sudo vtysh -c "conf t" -c "router bgp 65002" -c "no bgp ebgp-requires-policy" -c "end" -c "write memory"
+sudo vtysh -c "show bgp summary"
+sudo vtysh -c "show ip bgp 172.16.0.0/24"
+sudo vtysh -c "show bgp ipv4 unicast neighbors 10.2.253.4 advertised-routes"
 ```
 
-Verify on the NVA: `ip route show 172.16.0.0/24` should show `blackhole`.
+Verify on the NVA:
+
+- `ip route show 172.16.0.0/24` shows `blackhole`.
+- BGP summary no longer shows `(Policy)` for both ARS peers.
+- `show ip bgp 172.16.0.0/24` shows the route as `valid, sourced, local, best` and advertised to both ARS peers.
+
+**Symptom B:** NVA advertises `172.16.0.0/24`, but hub gateway still does not learn it.
+**Cause B:** `route_server_branch_to_branch_traffic_enabled = false` prevents branch route exchange between NVA and VPN gateway branches.
+**Fix B:**
+
+- Keep disabled if isolation is desired (lab default and expected behavior).
+- Enable branch-to-branch only if you intentionally want the hub VPN gateway to learn branch/NVA routes.
 
 ### 7.4 Spoke B Shows On-Prem Prefix in Effective Routes
 
@@ -781,7 +806,173 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-b-win22-1 \
 
 ---
 
-## 9. Lessons Learned / Key Findings
+## 9. Branch-to-Branch Enabled Test Scenarios
+
+Use this section when you intentionally set:
+
+```hcl
+route_server_branch_to_branch_traffic_enabled = true
+```
+
+Then run:
+
+```bash
+terraform plan -out tfplan
+terraform apply tfplan
+```
+
+### 9.1 Confirm Branch-to-Branch Is Enabled
+
+```bash
+az network routeserver show \
+  --resource-group rg-ars-end-to-end-lab \
+  --name ars-hub \
+  --query '{branchToBranch:allowBranchToBranchTraffic,asn:virtualRouterAsn}' \
+  -o table
+```
+
+Expected result:
+
+- `branchToBranch = true`
+- `asn = 65515`
+
+### 9.2 Confirm NVA Is Advertising the Synthetic Prefix
+
+```bash
+az vm run-command invoke \
+  -g rg-ars-end-to-end-lab \
+  -n vm-nva-hub \
+  --command-id RunShellScript \
+  --scripts "ip route show 172.16.0.0/24; sudo vtysh -c 'show bgp summary' -c 'show ip bgp 172.16.0.0/24'" \
+  -o json
+```
+
+Expected result:
+
+- Kernel route shows `blackhole 172.16.0.0/24`.
+- BGP peers `10.2.253.4` and `10.2.253.5` are up (not `(Policy)`).
+- `172.16.0.0/24` is `valid, sourced, local, best`.
+
+### 9.3 Confirm ARS Learned Routes from NVA Peer
+
+```bash
+az network routeserver peering list-learned-routes \
+  --resource-group rg-ars-end-to-end-lab \
+  --routeserver ars-hub \
+  --name conn-ars-to-nva \
+  --query "[RouteServiceRole_IN_0, RouteServiceRole_IN_1][][]" \
+  -o table
+```
+
+Expected result:
+
+- Two rows for `172.16.0.0/24` (one per Route Server instance local address `.4` and `.5`).
+
+### 9.4 Confirm Hub VPN Gateway Learns 172.16.0.0/24
+
+```bash
+az network vnet-gateway list-learned-routes \
+  --resource-group rg-ars-end-to-end-lab \
+  --name vpngw-hub \
+  -o table | grep 172.16
+```
+
+Expected result:
+
+- At least one learned-route entry for `172.16.0.0/24` appears on `vpngw-hub`.
+
+### 9.5 Confirm Hub Advertises 172.16.0.0/24 to On-Prem Peer
+
+First identify the connected on-prem BGP peer IP:
+
+```bash
+az network vnet-gateway list-bgp-peer-status \
+  --resource-group rg-ars-end-to-end-lab \
+  --name vpngw-hub \
+  -o table
+```
+
+Then query advertised routes to that peer:
+
+```bash
+az network vnet-gateway list-advertised-routes \
+  --resource-group rg-ars-end-to-end-lab \
+  --name vpngw-hub \
+  --peer <onprem-bgp-peer-ip> \
+  -o table | grep 172.16
+```
+
+Expected result:
+
+- `172.16.0.0/24` is advertised toward the on-prem peer when branch-to-branch is enabled.
+
+### 9.6 Confirm On-Prem Gateway Learns 172.16.0.0/24
+
+```bash
+az network vnet-gateway list-learned-routes \
+  --resource-group rg-ars-end-to-end-lab \
+  --name vpngw-onprem \
+  -o table | grep 172.16
+```
+
+Expected result:
+
+- `172.16.0.0/24` appears in learned routes on `vpngw-onprem`.
+
+### 9.7 Regression Checks for Spoke Policy Boundaries
+
+Spoke A (transit-enabled) should remain usable for on-prem route:
+
+```bash
+az network nic show-effective-route-table \
+  --resource-group rg-ars-end-to-end-lab \
+  --name nic-spoke-a-win22-1 \
+  -o table | grep 192.168.0.0/16
+```
+
+Spoke B (transit-disabled) should remain isolated for on-prem route:
+
+```bash
+az network nic show-effective-route-table \
+  --resource-group rg-ars-end-to-end-lab \
+  --name nic-spoke-b-win22-1 \
+  -o table | grep 192.168.0.0/16
+```
+
+Expected result:
+
+- Spoke A has a usable route.
+- Spoke B route remains non-forwardable (`Next Hop Type = None`).
+
+### 9.8 Optional Rollback Validation
+
+Set branch-to-branch back to false and apply:
+
+```hcl
+route_server_branch_to_branch_traffic_enabled = false
+```
+
+```bash
+terraform plan -out tfplan
+terraform apply tfplan
+```
+
+Re-check hub learned routes:
+
+```bash
+az network vnet-gateway list-learned-routes \
+  --resource-group rg-ars-end-to-end-lab \
+  --name vpngw-hub \
+  -o table | grep 172.16
+```
+
+Expected result:
+
+- `172.16.0.0/24` no longer appears on hub gateway learned routes.
+
+---
+
+## 10. Lessons Learned / Key Findings
 
 1. **ASN reuse causes silent platform errors** — Always decouple ARS ASN (65515) from VPN gateway and LNG ASNs.
 2. **Active-active gateways have multiple BGP peering addresses** — Only one needs to be wired into the LNG (the one bound to the same instance whose public IP the LNG's `gateway_address` references). The second peer may remain in `Connecting`; this is benign.
@@ -794,7 +985,7 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-b-win22-1 \
 
 ---
 
-## 10. File Map
+## 11. File Map
 
 | Path                                                         | Description                                  |
 |--------------------------------------------------------------|----------------------------------------------|

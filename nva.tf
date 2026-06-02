@@ -54,6 +54,7 @@ resource "azurerm_linux_virtual_machine" "nva_vm" {
     log syslog informational
     router bgp ${var.nva_bgp_asn}
      bgp router-id ${var.nva_private_ip_address}
+      no bgp ebgp-requires-policy
       neighbor ${cidrhost(var.route_server_subnet_prefixes[0], 4)} remote-as ${var.ars_bgp_asn}
      neighbor ${cidrhost(var.route_server_subnet_prefixes[0], 4)} ebgp-multihop 2
       neighbor ${cidrhost(var.route_server_subnet_prefixes[0], 5)} remote-as ${var.ars_bgp_asn}
