@@ -83,7 +83,8 @@ The environment contains five routing domains:
 
 The intended behavior:
 
-- Spoke A receives gateway-transit learned routes
+- Spoke A receives on-prem routes via hub gateway transit
+- Spoke A also receives NVA-learned routes through Route Server route injection (effective routes)
 - Spoke B stays isolated from gateway-transit learned routes
 - ARS learns routes from on-prem and NVA, but branch-to-branch propagation is controlled by ARS policy
 
@@ -118,9 +119,11 @@ graph TD
     Hub <-->|Peering transit enabled| SA
     Hub <--->|Peering transit disabled| SB
 
-    ARS -.->|Learns 192.168.0.0/16| SAHOST
-    ARS -.->|Learns 172.16.0.0/24 from NVA| SAHOST
+    HPGW -.->|Propagated via hub gateway transit: 192.168.0.0/16| SAHOST
+    ARS -.->|Route injection to spoke effective routes: 172.16.0.0/24| SAHOST
 ```
+
+  Note: The dotted arrows represent control-plane route programming into effective routes. Data-plane traffic does not traverse Azure Route Server.
 
 ### Addressing Model (Current tfvars Values)
 
