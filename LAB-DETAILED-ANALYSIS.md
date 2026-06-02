@@ -68,12 +68,16 @@ flowchart LR
   SB["Spoke B 10.4.0.0/16 transit disabled"]
 
   ONP <-->|IPsec + eBGP| HUB
-  HUB <-->|SDN integration| ARS
+  HUB <--->|SDN integration| ARS
   ARS <-->|Route exchange| HUB
   NVA <-->|eBGP multihop| ARS
-  HUB <-->|Peering transit enabled| SA
-  HUB <-->|Peering transit disabled| SB
+  HUB <--->|Peering transit enabled| SA
+  HUB <--->|Peering transit disabled| SB
+  HUB -.->|"Propagated via gateway transit: 192.168.0.0/16 and 172.16.0.0/24"| SA
+  HUB -.->|"Isolation: no usable transit route to 192.168.0.0/16 or 172.16.0.0/24"| SB
 ```
+
+The dotted paths above represent expected route visibility outcomes at the spoke effective route tables. They describe control-plane propagation behavior, not direct ARS-to-spoke data-plane forwarding.
 
 ## 6. Logical Routing Domains and Behavior
 
