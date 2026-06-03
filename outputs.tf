@@ -54,13 +54,23 @@ output "nva_bgp_connection_id" {
 }
 
 output "hub_to_onprem_connection_id" {
-  description = "Gateway connection from hub to simulated on-prem."
-  value       = azurerm_virtual_network_gateway_connection.hub_to_onprem.id
+  description = "Primary (instance 1) gateway connection from hub to simulated on-prem."
+  value       = azurerm_virtual_network_gateway_connection.hub_to_onprem_instance["vnetGatewayConfig1"].id
 }
 
 output "onprem_to_hub_connection_id" {
-  description = "Gateway connection from simulated on-prem to hub."
-  value       = azurerm_virtual_network_gateway_connection.onprem_to_hub.id
+  description = "Primary (instance 1) gateway connection from simulated on-prem to hub."
+  value       = azurerm_virtual_network_gateway_connection.onprem_to_hub_instance["vnetGatewayConfig1"].id
+}
+
+output "hub_to_onprem_connection_ids" {
+  description = "Gateway connection IDs from hub to simulated on-prem by gateway instance."
+  value       = { for k, v in azurerm_virtual_network_gateway_connection.hub_to_onprem_instance : k => v.id }
+}
+
+output "onprem_to_hub_connection_ids" {
+  description = "Gateway connection IDs from simulated on-prem to hub by gateway instance."
+  value       = { for k, v in azurerm_virtual_network_gateway_connection.onprem_to_hub_instance : k => v.id }
 }
 
 output "spoke_test_vm_names" {

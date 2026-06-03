@@ -231,6 +231,18 @@ variable "onprem_bgp_peering_address_override" {
   default     = null
 }
 
+variable "hub_bgp_peering_address_overrides" {
+  description = "Optional per-instance hub BGP peering IP overrides keyed by ip config name (vnetGatewayConfig1, vnetGatewayConfig2)."
+  type        = map(string)
+  default     = {}
+}
+
+variable "onprem_bgp_peering_address_overrides" {
+  description = "Optional per-instance on-prem BGP peering IP overrides keyed by ip config name (vnetGatewayConfig1, vnetGatewayConfig2)."
+  type        = map(string)
+  default     = {}
+}
+
 variable "vpn_shared_key" {
   description = "Pre-shared key for S2S IPsec tunnel between hub and simulated on-prem."
   type        = string
