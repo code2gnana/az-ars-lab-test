@@ -376,3 +376,28 @@ variable "nva_advertised_route" {
   type        = string
   default     = "172.16.0.0/24"
 }
+
+variable "spoke_a_dc_vm_size" {
+  description = "Azure VM size for Spoke A domain controller VMs."
+  type        = string
+  default     = "Standard_B2s"
+}
+
+variable "spoke_a_ad_domain_name" {
+  description = "AD DS domain FQDN for Spoke A domain controllers."
+  type        = string
+  default     = "corp.contoso.local"
+}
+
+variable "spoke_a_ad_netbios_name" {
+  description = "NetBIOS name for the AD DS domain in Spoke A."
+  type        = string
+  default     = "CORP"
+}
+
+variable "spoke_a_ad_dsrm_password" {
+  description = "DSRM safe mode password used during AD DS promotion."
+  type        = string
+  sensitive   = true
+  default     = "AzureDSRM123!!"
+}

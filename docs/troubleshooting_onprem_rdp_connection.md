@@ -1,5 +1,7 @@
 # Troubleshooting On-Prem RDP Connection from Spoke A
 
+Use this doc when diagnosing Spoke A to on-prem connectivity issues, simulation outcomes, or AD/DC deployment incidents.
+
 ## Scope
 This document captures every major step taken to troubleshoot and resolve intermittent Remote Desktop (RDP) connectivity from `vm-spoke-a-win22-1` to `vm-onprem-win22-1` (`192.168.1.4`) in the Azure Route Server hub-spoke lab.
 
@@ -463,3 +465,119 @@ Rollback output highlights:
 ### E) Interpretation
 
 In this specific lab state (dual-instance deterministic S2S model already in place), the MS guide scenario did not manifest as a visible outage during this run. This can happen when the intermediary path still forwards required control-plane flows despite UDR forcing. The simulation artifacts were fully removed after testing.
+
+---
+
+## AD DS and DNS Controller Bring-Up Troubleshooting (Spoke A)
+
+This section documents the complete remediation sequence used to deploy two domain controllers in Spoke A and stabilize AD replication.
+
+### Objective
+- Deploy `vm-spoke-a-dc-1` and `vm-spoke-a-dc-2`
+- Promote DC1 as forest root for `corp.contoso.local`
+- Promote DC2 as replica domain controller
+- Validate AD replication health
+
+### Initial failure: compute quota exhaustion
+
+Symptom during `terraform apply`:
+- DC1 creation failed with `standardBSFamily` quota error in `australiaeast`
+
+Quota verification:
+
+```bash
+az vm list-usage -l australiaeast -o table
+```
+
+Key finding:
+- `Standard BS Family vCPUs`: `10/10` (fully consumed)
+
+Remediation applied:
+- Changed DC VM size from `Standard_B2s` to `Standard_D2s_v3` in `terraform.tfvars`
+
+### Secondary failure: DC1 promotion script exited non-zero
+
+Symptom:
+- Extension `promote-dc1-ad-dns` failed with `VMExtensionProvisioningError`
+
+Root cause:
+- Script called `Get-ADDomain` too early with strict error handling before ADWS context was ready.
+
+Remediation applied in `spoke-a-domain-services.tf`:
+- Added `Import-Module ActiveDirectory`
+- Replaced direct `Get-ADDomain` condition with safe `try/catch`-based domain-exists logic
+
+### Terraform state drift handling for failed VM extensions
+
+When extension creation fails, Azure can still retain the extension resource while Terraform state does not.
+
+Observed symptoms:
+- Terraform error: resource already exists and must be imported.
+
+Remediation commands used:
+
+```bash
+terraform import 'azurerm_virtual_machine_extension.spoke_a_dc1_promote' \
+  '/subscriptions/51876dac-fb04-456e-a204-5e8fbc440c15/resourceGroups/rg-ars-end-to-end-lab/providers/Microsoft.Compute/virtualMachines/vm-spoke-a-dc-1/extensions/promote-dc1-ad-dns'
+
+terraform import 'azurerm_virtual_machine_extension.spoke_a_dc2_promote' \
+  '/subscriptions/51876dac-fb04-456e-a204-5e8fbc440c15/resourceGroups/rg-ars-end-to-end-lab/providers/Microsoft.Compute/virtualMachines/vm-spoke-a-dc-2/extensions/promote-dc2-ad-replica'
+```
+
+### DC2 replica promotion failures and fixes
+
+Observed failures:
+1. `An Active Directory domain controller for the domain ... could not be contacted`
+2. Timeout waiting for domain readiness from DC2
+3. Prereq path warning around static IP checks causing non-zero return in extension flow
+
+Remediation applied in `spoke-a-domain-services.tf`:
+- Added explicit readiness loop for primary DC using:
+  - DNS resolution against `10.3.0.10`
+  - LDAP port `389`
+  - ADWS port `9389`
+- Set explicit replication source to `spokeadc1.corp.contoso.local`
+- Added `-SkipPreChecks` on `Install-ADDSDomainController` for this lab VM context
+
+### Final deployment status
+
+Final Terraform result:
+- `Apply complete! Resources: 0 added, 1 changed, 0 destroyed.`
+
+Final extension status check:
+
+```bash
+az vm get-instance-view -g rg-ars-end-to-end-lab -n vm-spoke-a-dc-2 \
+  --query "instanceView.extensions[?name=='promote-dc2-ad-replica'].[name,statuses[0].displayStatus,substatuses[0].displayStatus]" -o tsv
+```
+
+Observed output:
+- `promote-dc2-ad-replica  Provisioning succeeded  Provisioning succeeded`
+
+### Replication validation commands and outcome
+
+Commands executed on DC2:
+
+```bash
+az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-dc-2 \
+  --command-id RunPowerShellScript \
+  --scripts "repadmin /replsummary" -o json
+
+az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-dc-2 \
+  --command-id RunPowerShellScript \
+  --scripts "repadmin /showrepl" -o json
+
+az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-dc-2 \
+  --command-id RunPowerShellScript \
+  --scripts "dcdiag /test:replications /v" -o json
+```
+
+Observed outcome:
+- `repadmin /replsummary`: `0` failures
+- `repadmin /showrepl`: inbound neighbors from `spokeadc1` successful for all naming contexts
+- `dcdiag /test:replications /v`: `spokeadc2 passed test Replications`
+
+### Operational notes
+1. If `az vm run-command invoke` returns `Conflict`, wait and retry after current run-command execution completes.
+2. For this lab, DC promotion through CustomScriptExtension is reliable after readiness gating and extension-state imports.
+3. Keep the D-series size in this region unless BS-family quota is increased.

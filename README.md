@@ -4,6 +4,25 @@
 
 For the full deep-dive document covering the issue statement, architecture rationale, design decisions, validation strategy, and expected outcomes, see [LAB-DETAILED-ANALYSIS.md](LAB-DETAILED-ANALYSIS.md).
 
+## Documentation Index
+
+Use these guides for deployment operations and troubleshooting:
+
+- [docs/addc_dns.md](docs/addc_dns.md) - End-to-end setup guide for Spoke A AD DS/DNS domain controllers (DC1/DC2), including validation and rollback.
+- [AD DS DNS checks, tests, validations and results](docs/addc_dns.md#checks-tests-validations-and-results) - Consolidated command reference with purpose and expected outputs.
+- [docs/troubleshooting_onprem_rdp_connection.md](docs/troubleshooting_onprem_rdp_connection.md) - Full troubleshooting timeline for Spoke A to on-prem RDP, GatewaySubnet UDR simulation, and AD/DC remediation history.
+- [docs/LAB-GUIDE.md](docs/LAB-GUIDE.md) - Lab execution steps and verification flow.
+- [docs/Azure_traffic_flow.md](docs/Azure_traffic_flow.md) - Route and traffic behavior reference.
+
+### What To Read First
+
+If you are new to this lab, read in this order:
+
+1. [docs/LAB-GUIDE.md](docs/LAB-GUIDE.md) for deployment and baseline validation flow.
+2. [docs/Azure_traffic_flow.md](docs/Azure_traffic_flow.md) to understand control-plane and data-plane behavior.
+3. [docs/addc_dns.md](docs/addc_dns.md) when enabling or operating AD DS/DNS domain controllers.
+4. [docs/troubleshooting_onprem_rdp_connection.md](docs/troubleshooting_onprem_rdp_connection.md) for deep troubleshooting and incident history.
+
 ## Quick Start
 
 Use this minimal flow to deploy and run a first-pass validation.

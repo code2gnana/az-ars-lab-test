@@ -1,5 +1,7 @@
 ## Azure Traffic Flow in This Lab
 
+Use this doc when you need to understand control-plane versus data-plane behavior and route propagation outcomes.
+
 This document explains traffic behavior in the Azure Route Server lab using two lenses:
 
 - Control plane: how routes are learned, selected, and programmed.

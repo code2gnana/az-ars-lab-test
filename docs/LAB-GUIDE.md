@@ -1,5 +1,7 @@
 # Azure Route Server (ARS) End-to-End Test Lab Guide
 
+Use this doc when you want the primary deployment and validation workflow for the full lab.
+
 A comprehensive lab to validate Azure Route Server (ARS) behavior, hub-spoke route propagation, NVA-injected synthetic routes, branch-to-branch traffic isolation, and spoke-to-spoke transit through a Linux NVA.
 
 For the full deep-dive document covering the issue statement, architecture rationale, design decisions, validation strategy, and expected outcomes, see [LAB-DETAILED-ANALYSIS.md](LAB-DETAILED-ANALYSIS.md).
