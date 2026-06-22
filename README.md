@@ -1,4 +1,4 @@
-# Azure Route Server Route Leakage Lab
+# Azure Route Server Lab
 
 ## Detailed Lab Analysis
 
