@@ -1,4 +1,4 @@
-## Azure Traffic Flow in This Lab
+# Azure Traffic Flow in This Lab
 
 Use this doc when you need to understand control-plane versus data-plane behavior and route propagation outcomes.
 
@@ -22,9 +22,9 @@ Understanding control plane vs data plane is the key to interpreting test result
 ## 2. Topology Context
 
 - Hub VNet hosts:
-	- Hub VPN Gateway (ASN 65010)
-	- Azure Route Server (ASN 65515)
-	- Linux NVA with FRR (ASN 65002)
+  - Hub VPN Gateway (ASN 65010)
+  - Azure Route Server (ASN 65515)
+  - Linux NVA with FRR (ASN 65002)
 - Simulated on-prem VNet has VPN Gateway (ASN 65001)
 - Spoke A uses remote gateway or route server path from hub
 - Spoke B does not use remote gateway path

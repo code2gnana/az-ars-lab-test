@@ -26,7 +26,7 @@ This lab demonstrates and validates the following Azure networking behaviors:
 
 ### 2.1 Network Topology
 
-```
+```drawio
                  ┌──────────────────────────────────────────────── ┐
                  │              vnet-hub  10.2.0.0/16              │
                  │                                                 │
@@ -100,20 +100,20 @@ This lab demonstrates and validates the following Azure networking behaviors:
 
 ### 3.1 Terraform Files
 
-| File                    | Purpose                                                                  |
-|-------------------------|--------------------------------------------------------------------------|
-| [main.tf](main.tf)      | Resource group                                                           |
-| [providers.tf](providers.tf) / [terraform.tf](terraform.tf) | Provider, backend                  |
-| [variables.tf](variables.tf) | All input variables (network, BGP ASNs, VM sizes, names)            |
-| [terraform.tfvars](terraform.tfvars) | Active lab values                                            |
-| [networking.tf](networking.tf) | Hub, on-prem, and spoke VNets/subnets                              |
-| [gateway-routeserver.tf](gateway-routeserver.tf) | Hub + on-prem VPN gateways and ARS                |
-| [s2s-bgp.tf](s2s-bgp.tf) | Local network gateways and S2S BGP-enabled connections                  |
-| [nva.tf](nva.tf)        | Linux NVA VM, FRR cloud-init, ARS BGP peering                            |
-| [peering.tf](peering.tf) | Hub↔Spoke A (transit on), Hub↔Spoke B (transit off)                     |
-| [transit-udr.tf](transit-udr.tf) | UDRs sending spoke-to-spoke traffic via the NVA                 |
-| [compute.tf](compute.tf) | Windows test VMs in Spoke A, Spoke B, and On-Prem + NSGs                |
-| [outputs.tf](outputs.tf) | Convenience outputs                                                     |
+| File                                                        | Purpose                                                                   |
+|-------------------------------------------------------------|---------------------------------------------------------------------------|
+| [main.tf](main.tf)                                          | Resource group                                                            |
+| [providers.tf](providers.tf) / [terraform.tf](terraform.tf) | Provider, backend                                                         |
+| [variables.tf](variables.tf)                                | All input variables (network, BGP ASNs, VM sizes, names)                  |
+| [terraform.tfvars](terraform.tfvars)                        | Active lab values                                                         |
+| [networking.tf](networking.tf)                              | Hub, on-prem, and spoke VNets/subnets                                     |
+| [gateway-routeserver.tf](gateway-routeserver.tf)            | Hub + on-prem VPN gateways and ARS                                        |
+| [s2s-bgp.tf](s2s-bgp.tf)                                    | Local network gateways and S2S BGP-enabled connections                    |
+| [nva.tf](nva.tf)                                            | Linux NVA VM, FRR cloud-init, ARS BGP peering                             |
+| [peering.tf](peering.tf)                                    | Hub↔Spoke A (transit on), Hub↔Spoke B (transit off)                       |
+| [transit-udr.tf](transit-udr.tf)                            | UDRs sending spoke-to-spoke traffic via the NVA                           |
+| [compute.tf](compute.tf)                                    | Windows test VMs in Spoke A, Spoke B, and On-Prem + NSGs                  |
+| [outputs.tf](outputs.tf)                                    | Convenience outputs                                                       |
 
 ### 3.2 Key Resources
 
@@ -303,7 +303,7 @@ az network nic show-effective-route-table \
 
 **Pass criteria:**
 
-```
+```bash
 Source                 State    Address Prefix    Next Hop Type          Next Hop IP
 VirtualNetworkGateway  Active   192.168.0.0/16    VirtualNetworkGateway  10.2.254.5 10.2.254.4
 ```
@@ -323,7 +323,7 @@ az network nic show-effective-route-table \
 
 **Pass criteria:**
 
-```
+```bash
 Source    State    Address Prefix    Next Hop Type     Next Hop IP
 Default   Active   192.168.0.0/16    None
 ```
@@ -372,7 +372,7 @@ az network route-table show \
 
 And the User-sourced rows appear on each spoke NIC's effective route table:
 
-```
+```bash
 User   Active   10.4.0.0/16   VirtualAppliance   10.2.1.10   (on Spoke A)
 User   Active   10.3.0.0/16   VirtualAppliance   10.2.1.10   (on Spoke B)
 ```
@@ -683,7 +683,7 @@ ip route show 172.16.0.0/24
 **Cause:** ASN value matched ARS (65515), which is reserved.
 **Fix:** Use distinct ASN for hub VPN gateway (e.g. 65010). The lab pins this in `terraform.tfvars`:
 
-```
+```bash
 vpn_gateway_bgp_asn = 65010
 ars_bgp_asn         = 65515
 ```
@@ -694,12 +694,13 @@ ars_bgp_asn         = 65515
 
 **Root Cause:** An active-active VPN gateway has two instances (`vnetGatewayConfig1`, `vnetGatewayConfig2`), each with its own public IP and BGP peering address inside the gateway subnet.
 
-```
+```bash
 vnetGatewayConfig1  →  pip-vpngw-onprem-1  (e.g. 4.200.45.20)   →  BGP IP: 192.168.254.4
 vnetGatewayConfig2  →  pip-vpngw-onprem-2  (e.g. 20.188.221.252) →  BGP IP: 192.168.254.5
 ```
 
 The hub-side LNG (`lng-onprem-representation`) specifies:
+
 - `gateway_address` — the public IP the hub will send IKE/IPsec traffic **to**.
 - `bgp_peering_address` — the inner BGP address the hub expects for BGP after the tunnel is up.
 
@@ -756,7 +757,7 @@ az network public-ip show -g rg-ars-end-to-end-lab -n pip-vpngw-onprem-2 --query
 From the outputs above, construct:
 
 | ipconfig | pip resource | pip address | BGP peering address |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | vnetGatewayConfig1 | pip-vpngw-onprem-1 | `<output from step 4>` | `<output from step 3>` |
 | vnetGatewayConfig2 | pip-vpngw-onprem-2 | `<output from step 4>` | `<output from step 3>` |
 

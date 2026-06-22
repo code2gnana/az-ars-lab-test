@@ -3,6 +3,7 @@
 Use this doc when you are deploying, validating, or operating the Spoke A AD DS and DNS domain controllers.
 
 ## Purpose
+
 This document provides a complete setup and operations guide for deploying two Windows Server domain controllers in Spoke A with Active Directory Domain Services (AD DS) and DNS using Terraform and Azure VM extensions.
 
 ## Topology and Design
@@ -15,6 +16,7 @@ This document provides a complete setup and operations guide for deploying two W
 - Subnet: `vnet-spoke-a/Subnet-Default`
 
 Design goals:
+
 - Deterministic DC addresses for DNS consistency
 - Automated forest creation and replica promotion
 - Repeatable deployment through Terraform
@@ -50,6 +52,7 @@ spoke_a_ad_dsrm_password = "<strong-password>"
 ```
 
 Note:
+
 - `Standard_B2s` hit quota in `australiaeast` during this lab.
 - Use a family with available vCPU quota.
 
@@ -62,8 +65,8 @@ Note:
 az vm list-usage -l australiaeast -o table
 ```
 
-3. Ensure Spoke A subnet and NSG association already exist.
-4. Ensure Terraform state is healthy and initialized:
+1. Ensure Spoke A subnet and NSG association already exist.
+2. Ensure Terraform state is healthy and initialized:
 
 ```bash
 terraform init
@@ -79,6 +82,7 @@ terraform plan
 ```
 
 Expected outcomes include:
+
 - Two NICs for DCs with static IPs
 - Two Windows VMs
 - Two CustomScriptExtension resources for promotion
@@ -137,6 +141,7 @@ az vm get-instance-view -g rg-ars-end-to-end-lab -n vm-spoke-a-dc-2 \
 ```
 
 Expected:
+
 - Provisioning succeeded for both status and substatus.
 
 Run AD replication checks on DC2:
@@ -156,6 +161,7 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-dc-2 \
 ```
 
 Healthy indicators:
+
 - `repadmin /replsummary`: `0` failures
 - `repadmin /showrepl`: successful last attempts across all naming contexts
 - `dcdiag /test:replications /v`: passed for Replications
@@ -174,9 +180,11 @@ az version --output table | head -n 20
 ```
 
 What this performs:
+
 - Confirms Azure CLI is installed and available in the current shell PATH.
 
 Expected output:
+
 - `command -v az` prints a valid path such as `/opt/homebrew/bin/az`.
 - `az version` returns version rows, not an error.
 
@@ -195,9 +203,11 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-dc-2 \
 ```
 
 What this performs:
+
 - Verifies Windows DNS service is running on both domain controllers.
 
 Expected output:
+
 - `Status` equals `Running` on each VM.
 
 #### 2) AD-integrated DNS zone presence
@@ -209,9 +219,11 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-dc-1 \
 ```
 
 What this performs:
+
 - Confirms the domain zone exists and is AD-integrated.
 
 Expected output:
+
 - Zone `corp.contoso.local` appears.
 - `IsDsIntegrated` is `True`.
 
@@ -224,9 +236,11 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-dc-2 \
 ```
 
 What this performs:
+
 - Validates DNS name resolution path from DC2 to DC1 DNS service.
 
 Expected output:
+
 - Returns one or more A records for `corp.contoso.local`.
 
 #### 4) AD LDAP SRV discovery records
@@ -238,9 +252,11 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-dc-2 \
 ```
 
 What this performs:
+
 - Checks domain-controller locator SRV records used by AD clients.
 
 Expected output:
+
 - SRV answers resolve to DC hosts such as `spokeadc1` and `spokeadc2`.
 
 #### 5) Cross-server answer consistency
@@ -252,9 +268,11 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-dc-2 \
 ```
 
 What this performs:
+
 - Compares resolution results from both DNS servers.
 
 Expected output:
+
 - Both lookups return consistent A record values.
 
 #### 6) DNS-focused domain controller diagnostics
@@ -266,9 +284,11 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-dc-2 \
 ```
 
 What this performs:
+
 - Runs Microsoft DNS diagnostic checks for AD DS.
 
 Expected output:
+
 - DNS tests pass with no critical DNS failures.
 
 ### Combined script checks
@@ -319,9 +339,11 @@ if ($failed -eq 0) { Write-Output "OVERALL: PASS"; exit 0 } else { Write-Output 
 ```
 
 What this performs:
+
 - Executes a full DNS health suite and includes `dcdiag` validation.
 
 Expected output:
+
 - Multiple `PASS:` lines.
 - `TOTAL FAILURES: 0`
 - `OVERALL: PASS`
@@ -356,9 +378,11 @@ if ($failed -eq 0) { Write-Output "OVERALL: PASS"; exit 0 } else { Write-Output 
 ```
 
 What this performs:
+
 - Runs a faster DNS health subset for routine checks.
 
 Expected output:
+
 - `PASS:` lines for each check.
 - `TOTAL FAILURES: 0`
 - `OVERALL: PASS`
@@ -372,9 +396,11 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-dc-2 \
 ```
 
 What this performs:
+
 - Executes the fastest practical two checks for DNS service and AD SRV lookup.
 
 Expected output:
+
 - `PASS: DNS service running`
 - `PASS: LDAP SRV lookup works via DC1 DNS`
 
@@ -390,36 +416,44 @@ Expected output:
 ### 1) Quota failure for VM size family
 
 Symptom:
+
 - `Operation could not be completed as it results in exceeding approved standardBSFamily Cores quota`
 
 Fix:
+
 - Change `spoke_a_dc_vm_size` to an available family (for example, `Standard_D2s_v3`)
 - Re-run apply
 
 ### 2) Early AD module/domain lookup failures
 
 Symptom:
+
 - `Unable to find a default server with Active Directory Web Services running`
 
 Fix:
+
 - Ensure scripts use guarded checks and readiness loops (already implemented)
 - Re-apply extension
 
 ### 3) Extension resource exists but missing from Terraform state
 
 Symptom:
+
 - Terraform says extension already exists and must be imported
 
 Fix:
+
 - Import extension resource ID into state
 - Re-run `terraform apply`
 
 ### 4) Run Command conflict during validation
 
 Symptom:
+
 - `Run command extension execution is in progress`
 
 Fix:
+
 - Wait for in-flight command to finish and retry
 
 ## Security and Operations Notes

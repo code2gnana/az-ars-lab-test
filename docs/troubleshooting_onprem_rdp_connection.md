@@ -3,14 +3,17 @@
 Use this doc when diagnosing Spoke A to on-prem connectivity issues, simulation outcomes, or AD/DC deployment incidents.
 
 ## Scope
+
 This document captures every major step taken to troubleshoot and resolve intermittent Remote Desktop (RDP) connectivity from `vm-spoke-a-win22-1` to `vm-onprem-win22-1` (`192.168.1.4`) in the Azure Route Server hub-spoke lab.
 
 ## Problem Statement
+
 - Source VM: `vm-spoke-a-win22-1`
 - Destination VM: `vm-onprem-win22-1` (`192.168.1.4`)
 - Symptom: RDP client connection to `192.168.1.4` was failing intermittently.
 
 ## Environment Context
+
 - Resource Group: `rg-ars-end-to-end-lab`
 - Hub VPN Gateway: `vpngw-hub` (active-active)
 - Simulated On-Prem VPN Gateway: `vpngw-onprem` (active-active)
@@ -21,6 +24,7 @@ This document captures every major step taken to troubleshoot and resolve interm
 ## Step-by-Step Troubleshooting Timeline
 
 ### 1) Validate IPsec tunnel status
+
 We first checked whether the S2S tunnels were up.
 
 ```bash
@@ -32,9 +36,11 @@ az network vpn-connection show -g rg-ars-end-to-end-lab -n conn-onprem-to-hub \
 ```
 
 Observation:
+
 - Both connection objects reported `Connected` at that time.
 
 ### 2) Validate route propagation on Spoke A NIC
+
 We confirmed Spoke A had a route to on-prem prefix via virtual network gateway.
 
 ```bash
@@ -42,9 +48,11 @@ az network nic show-effective-route-table -g rg-ars-end-to-end-lab -n nic-spoke-
 ```
 
 Observation:
+
 - Route `192.168.0.0/16` existed with next hop `VirtualNetworkGateway`.
 
 ### 3) Attempt path diagnostics with Network Watcher
+
 We attempted connectivity test from source VM to destination port 3389.
 
 ```bash
@@ -57,9 +65,11 @@ az network watcher test-connectivity \
 ```
 
 Observation:
+
 - Failed because NetworkWatcher agent extension was not installed on source VM.
 
 ### 4) Check effective NSG on source and destination NICs
+
 We checked effective security rules to identify network policy blocks.
 
 ```bash
@@ -77,10 +87,12 @@ az network nsg rule list -g rg-ars-end-to-end-lab --nsg-name nsg-onprem-test \
 ```
 
 Observation:
+
 - No explicit deny on TCP 3389 in NSG path.
 - Destination effective NSG contained default `AllowVnetInBound`, so VNet-routed traffic was not blocked by NSG.
 
 ### 5) Validate guest OS readiness on destination VM
+
 We validated RDP service, listener, firewall, and NLA settings inside `vm-onprem-win22-1`.
 
 ```bash
@@ -101,6 +113,7 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-onprem-win22-1 \
 ```
 
 Observation:
+
 - `TermService` running.
 - Listener on `0.0.0.0:3389` and `::3389`.
 - RDP firewall rules enabled.
@@ -110,6 +123,7 @@ Observation:
 Conclusion: destination guest itself was RDP-ready.
 
 ### 6) Validate source-to-destination TCP 3389 from inside source VM
+
 We used `Test-NetConnection` repeatedly.
 
 ```bash
@@ -128,9 +142,11 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-win22-1 \
 ```
 
 Observation:
+
 - Intermittent results (for example: `True`, `True`, `False`).
 
 ### 7) Validate return path from destination side
+
 We verified reverse direction to rule out return-path issues.
 
 ```bash
@@ -142,10 +158,12 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-onprem-win22-1 \
 ```
 
 Observation:
+
 - Return route to `10.3.0.0/16` present.
 - Reverse TCP test succeeded.
 
 ### 8) Re-check BGP states on hub gateway
+
 We checked if both on-prem peers were fully established.
 
 ```bash
@@ -153,21 +171,27 @@ az network vnet-gateway list-bgp-peer-status -g rg-ars-end-to-end-lab -n vpngw-h
 ```
 
 Observation during failure window:
+
 - One on-prem peer connected while another peer was `Connecting`.
 - This can create asymmetric active-active behavior with intermittent drops when only one effective instance path is carrying traffic.
 
 ### 9) Root cause
+
 Primary issue identified:
+
 - Active-active gateways were not modeled with deterministic per-instance LNG/connection resources.
 - Traffic hashing across gateway instances could hit non-equivalent pathing during partial peering/tunnel establishment, causing intermittent RDP failure.
 
 Secondary operator confusion source:
+
 - Telnet is often not installed on Windows Server by default, and successful telnet to 3389 can appear as a blank screen.
 
 ---
 
 ## Final Resolution Applied
+
 We implemented Option A (dual-instance deterministic connectivity):
+
 - One LNG per gateway instance on each side.
 - One VPN connection per instance pairing in each direction.
 - Auto-discovered per-instance BGP peer mapping from gateway state.
@@ -193,6 +217,7 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-win22-1 \
 ```
 
 Final outcome:
+
 - Both on-prem BGP peers (`192.168.254.4` and `192.168.254.5`) reached `Connected` state.
 - New instance-2 VPN connections reached `Connected`.
 - Repeated `Test-NetConnection` checks returned consistent success.
@@ -202,6 +227,7 @@ Final outcome:
 ## Terraform Code Changes (Applied)
 
 ### 1) `variables.tf` additions
+
 ```hcl
 variable "hub_bgp_peering_address_overrides" {
   description = "Optional per-instance hub BGP peering IP overrides keyed by ip config name (vnetGatewayConfig1, vnetGatewayConfig2)."
@@ -217,6 +243,7 @@ variable "onprem_bgp_peering_address_overrides" {
 ```
 
 ### 2) `s2s-bgp.tf` replacement (core dual-instance logic)
+
 ```hcl
 locals {
   # Build deterministic map: ip config name -> gateway BGP peer IP.
@@ -332,6 +359,7 @@ resource "azurerm_virtual_network_gateway_connection" "onprem_to_hub_instance" {
 ```
 
 ### 3) `terraform.tfvars` update for Option A
+
 ```hcl
 # Option A: keep empty to auto-discover current per-instance BGP mapping.
 hub_bgp_peering_address_overrides    = {}
@@ -341,6 +369,7 @@ onprem_bgp_peering_address_overrides = {}
 ---
 
 ## Notes for Future Incidents
+
 1. Re-run repeated TCP checks instead of one-off checks:
    - `Test-NetConnection` may expose intermittent behavior that single tests miss.
 2. In active-active topologies, verify both peer IPs are connected:
@@ -354,9 +383,11 @@ onprem_bgp_peering_address_overrides = {}
 ## GatewaySubnet UDR Simulation (MS Troubleshooting Scenario)
 
 Reference scenario tested:
+
 - <https://learn.microsoft.com/en-au/azure/route-server/troubleshoot-route-server#why-do-i-experience-on-premises-connectivity-issues-after-adding-a-user-defined-route-udr-on-the-gatewaysubnet>
 
 Objective:
+
 - Simulate on-prem connectivity degradation when GatewaySubnet traffic is forced through an NVA.
 
 ### A) Clean baseline capture (before simulation)
@@ -376,6 +407,7 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-win22-1 \
 ```
 
 Before output highlights:
+
 - NVA FORWARD chain: `-P FORWARD ACCEPT` (no BGP DROP rules).
 - Hub BGP: both on-prem peers (`192.168.254.4`, `192.168.254.5`) were `Connected`.
 - Spoke-A -> on-prem TCP/3389: `5/5 True`.
@@ -410,6 +442,7 @@ az network vnet subnet update -g rg-ars-end-to-end-lab --vnet-name vnet-hub -n G
 ```
 
 Simulation route table entries:
+
 - `10.2.0.0/16 -> 10.2.1.10 (VirtualAppliance)`
 - `10.2.253.0/27 -> 10.2.1.10 (VirtualAppliance)`
 
@@ -428,10 +461,12 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-win22-1 \
 ```
 
 After output highlights:
+
 - Hub BGP still showed both on-prem peers `Connected`.
 - Spoke-A -> on-prem TCP/3389 remained stable: `8/8 True`.
 
 Result of this simulation run:
+
 - **The expected connectivity drop was not reproduced in this lab run**, even with explicit `RouteServerSubnet` forcing and injected BGP DROP filters on the NVA.
 
 ### D) Rollback and post-rollback verification
@@ -457,6 +492,7 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-win22-1 \
 ```
 
 Rollback output highlights:
+
 - NVA FORWARD chain returned to `-P FORWARD ACCEPT` with no injected DROP rules.
 - `rt-gateway-subnet-udr-test` no longer exists (`ResourceNotFound` on show).
 - Hub BGP healthy.
@@ -473,6 +509,7 @@ In this specific lab state (dual-instance deterministic S2S model already in pla
 This section documents the complete remediation sequence used to deploy two domain controllers in Spoke A and stabilize AD replication.
 
 ### Objective
+
 - Deploy `vm-spoke-a-dc-1` and `vm-spoke-a-dc-2`
 - Promote DC1 as forest root for `corp.contoso.local`
 - Promote DC2 as replica domain controller
@@ -481,6 +518,7 @@ This section documents the complete remediation sequence used to deploy two doma
 ### Initial failure: compute quota exhaustion
 
 Symptom during `terraform apply`:
+
 - DC1 creation failed with `standardBSFamily` quota error in `australiaeast`
 
 Quota verification:
@@ -490,20 +528,25 @@ az vm list-usage -l australiaeast -o table
 ```
 
 Key finding:
+
 - `Standard BS Family vCPUs`: `10/10` (fully consumed)
 
 Remediation applied:
+
 - Changed DC VM size from `Standard_B2s` to `Standard_D2s_v3` in `terraform.tfvars`
 
 ### Secondary failure: DC1 promotion script exited non-zero
 
 Symptom:
+
 - Extension `promote-dc1-ad-dns` failed with `VMExtensionProvisioningError`
 
 Root cause:
+
 - Script called `Get-ADDomain` too early with strict error handling before ADWS context was ready.
 
 Remediation applied in `spoke-a-domain-services.tf`:
+
 - Added `Import-Module ActiveDirectory`
 - Replaced direct `Get-ADDomain` condition with safe `try/catch`-based domain-exists logic
 
@@ -512,6 +555,7 @@ Remediation applied in `spoke-a-domain-services.tf`:
 When extension creation fails, Azure can still retain the extension resource while Terraform state does not.
 
 Observed symptoms:
+
 - Terraform error: resource already exists and must be imported.
 
 Remediation commands used:
@@ -527,11 +571,13 @@ terraform import 'azurerm_virtual_machine_extension.spoke_a_dc2_promote' \
 ### DC2 replica promotion failures and fixes
 
 Observed failures:
+
 1. `An Active Directory domain controller for the domain ... could not be contacted`
 2. Timeout waiting for domain readiness from DC2
 3. Prereq path warning around static IP checks causing non-zero return in extension flow
 
 Remediation applied in `spoke-a-domain-services.tf`:
+
 - Added explicit readiness loop for primary DC using:
   - DNS resolution against `10.3.0.10`
   - LDAP port `389`
@@ -542,6 +588,7 @@ Remediation applied in `spoke-a-domain-services.tf`:
 ### Final deployment status
 
 Final Terraform result:
+
 - `Apply complete! Resources: 0 added, 1 changed, 0 destroyed.`
 
 Final extension status check:
@@ -552,6 +599,7 @@ az vm get-instance-view -g rg-ars-end-to-end-lab -n vm-spoke-a-dc-2 \
 ```
 
 Observed output:
+
 - `promote-dc2-ad-replica  Provisioning succeeded  Provisioning succeeded`
 
 ### Replication validation commands and outcome
@@ -573,11 +621,13 @@ az vm run-command invoke -g rg-ars-end-to-end-lab -n vm-spoke-a-dc-2 \
 ```
 
 Observed outcome:
+
 - `repadmin /replsummary`: `0` failures
 - `repadmin /showrepl`: inbound neighbors from `spokeadc1` successful for all naming contexts
 - `dcdiag /test:replications /v`: `spokeadc2 passed test Replications`
 
 ### Operational notes
+
 1. If `az vm run-command invoke` returns `Conflict`, wait and retry after current run-command execution completes.
 2. For this lab, DC promotion through CustomScriptExtension is reliable after readiness gating and extension-state imports.
 3. Keep the D-series size in this region unless BS-family quota is increased.
