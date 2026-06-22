@@ -1,5 +1,6 @@
+subscription_id "<subscription_id>"
 resource_group_name = "rg-ars-end-to-end-lab"
-location            = "eastus"
+location            = "australiaeast"
 
 hub_vnet_name     = "vnet-hub"
 onprem_vnet_name  = "vnet-onprem"
@@ -22,14 +23,14 @@ spoke_a_default_subnet_prefixes  = ["10.1.0.0/24"]
 spoke_b_default_subnet_prefixes  = ["10.2.0.0/24"]
 
 vpn_gateway_name           = "vpngw-hub"
-vpn_gateway_sku            = "VpnGw1"
+vpn_gateway_sku            = "VpnGw1AZ"
 vpn_gateway_bgp_asn        = 65010
 ars_bgp_asn                = 65515
 vpn_gateway_public_ip_name = "pip-vpngw"
-hub_vpn_gateway_active_active = false
+hub_vpn_gateway_active_active = true
 
 onprem_vpn_gateway_name           = "vpngw-onprem"
-onprem_vpn_gateway_sku            = "VpnGw1"
+onprem_vpn_gateway_sku            = "VpnGw1AZ"
 onprem_vpn_gateway_bgp_asn        = 65001
 onprem_vpn_gateway_public_ip_name = "pip-vpngw-onprem"
 
@@ -44,15 +45,11 @@ hub_to_onprem_connection_name     = "conn-hub-to-onprem"
 onprem_to_hub_connection_name     = "conn-onprem-to-hub"
 
 # Option A: deterministic per-instance BGP pairing for active-active gateways.
-hub_bgp_peering_address_overrides = {
-	vnetGatewayConfig1 = "10.0.254.4"
-	vnetGatewayConfig2 = "10.0.254.5"
-}
+hub_bgp_peering_address_overrides = {}
 
-onprem_bgp_peering_address_overrides = {
-	vnetGatewayConfig1 = "192.168.254.4"
-	vnetGatewayConfig2 = "192.168.254.5"
-}
+
+onprem_bgp_peering_address_overrides = {}
+
 vpn_shared_key                    = "AzureSecretBGPKey123!"
 
 nva_nic_name            = "nic-nva-hub"
