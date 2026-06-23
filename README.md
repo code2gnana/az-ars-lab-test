@@ -2,7 +2,7 @@
 
 ## Detailed Lab Analysis
 
-For the full deep-dive document covering the issue statement, architecture rationale, design decisions, validation strategy, and expected outcomes, see [LAB-DETAILED-ANALYSIS.md](LAB-DETAILED-ANALYSIS.md).
+For the full deep-dive document covering the issue statement, architecture rationale, design decisions, validation strategy, and expected outcomes, see [LAB-DETAILED-ANALYSIS.md](docs/LAB-DETAILED-ANALYSIS.md).
 
 ## Documentation Index
 
